@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adatp"
+version = "0.1.0"
+description = "Ada Transport Protocol SDK for Python"
+readme = "README.md"
+authors = [{ name = "The Coder", email = "coder@example.com" }]
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.7"
+dependencies = [
+    "cryptography>=41.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/example/adatp"
