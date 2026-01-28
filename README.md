@@ -1,80 +1,76 @@
 # AdaTP Python SDK
 
-A robust, spec-compliant Python client for the Ada Transport Protocol (AdaTP). This SDK provides necessary primitives and a client implementation to communicate with AdaTP servers using secure, encrypted channels.
+A robust, object-oriented Python client library for the **Ada Transfer Protocol (AdaTP)**. This SDK provides a simple API for building secure chat and file transfer applications using pure Python 3.
 
-## Features
+## 📦 Features
+*   **Security:** Full implementation of X25519 Key Exchange and AES-256-GCM encryption (`cryptography` library).
+*   **Threading:** Socket handling is designed to be easily integrated into threaded or select-based loops.
+*   **Ease of Use:** High-level wrappers for `connect()`, `authenticate()`, and `send_file()`.
 
-- **Secure Handshake**: Implements X25519 key exchange and HKDF key derivation.
-- **End-to-End Encryption**: AES-256-GCM encryption for all messages.
-- **Type-Safe Protocol Definitions**: Clear and mostly type-hinted protocol structures.
-- **Protocol Compliant**: Fully compatible with the official AdaTP Rust server.
+## 🚀 Installation
 
-## Requirements
-
-- Python 3.7+
-- `cryptography` library
-
-## Installation
+Requires Python 3.7+ and the `cryptography` library.
 
 ```bash
-pip install .
-# or if developing locally
-pip install -e .
+# Install dependencies
+pip install cryptography
+
+# Set PYTHONPATH to include source
+export PYTHONPATH=$PYTHONPATH:$(pwd)/src
 ```
 
-## Usage
+## 🛠️ Usage
+
+### 1. Basic Chat Client
 
 ```python
-from adatp import AdaTPClient
+from adatp.client import AdaTPClient
 
-def main():
-    try:
-        # Create client
-        client = AdaTPClient('127.0.0.1', 8443)
-        
-        # Connect (Performs Handshake)
-        client.connect()
-        
-        # Send Message
-        client.send_text_message("Hello from Python!")
-        
-        # Disconnect
-        client.disconnect()
-        
-    except Exception as e:
-        print(f"Error: {e}")
+# 1. Initialize
+client = AdaTPClient('127.0.0.1', 8444)
 
-if __name__ == '__main__':
-    main()
+try:
+    # 2. Connect
+    client.connect()
+
+    # 3. Authenticate
+    client.authenticate("username", "secret_password")
+
+    # 4. Join Room
+    client.join_room("general")
+    
+    # 5. Send Message
+    client.send_text_message("Hello from Python!")
+
+    # 6. Read Loop
+    while True:
+        packet = client.read_packet()
+        # Decryption is handled manually in loop or via helper
+        # See example.py for precise handling of flags & decryption
+        
+except Exception as e:
+    print(f"Error: {e}")
 ```
 
-## Protocol Support
+### 2. File Transfer
 
-| Feature | Status |
-|---------|--------|
-| Handshake (X25519) | ✅ |
-| Encryption (AES-GCM) | ✅ |
-| Text Messages | ✅ |
-| Multi-Room Chat | ✅ |
-| File Transfer | ✅ (Implemented) |
-| Voice/Video | 🚧 (Planned) |
+The SDK abstracts the complexity of chunking and metadata into a simple method:
 
-### Multi-Room Support
-
+**Sending a File:**
 ```python
-# Join a room
-client.join_room("lobby")
-
-# Reading requires a loop (see example.py)
+client.send_file("path/to/document.pdf")
 ```
 
-## structure
+**Receiving Files:**
+The reception logic requires handling `FILE_INIT`, `FILE_CHUNK`, and `FILE_COMPLETE` packets in your main loop. See `filetransfer_example.py` for a complete reference implementation.
 
-- `src/adatp/protocol.py`: Packet definitions and Enums.
-- `src/adatp/crypto.py`: SecureSession and Key Derivation logic.
-- `src/adatp/client.py`: TCP Client implementation.
+## 📂 Examples
 
-## License
+*   **Chat CLI:** `python3 example.py`
+    *   A fully functional terminal chat client supporting rooms (`/join`).
+*   **File Transfer:** `python3 filetransfer_example.py`
+    *   Demonstrates uploading a dummy file and processing incoming file streams concurrently.
 
-MIT
-# SDK-Python
+## 🔧 Configuration
+
+By default, the SDK connects to `127.0.0.1:8444`. You can modify the host and port during the `AdaTPClient` initialization.
