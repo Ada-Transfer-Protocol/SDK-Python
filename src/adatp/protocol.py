@@ -82,24 +82,20 @@ class Packet:
         self.auth_tag = None
 
     @staticmethod
-    def encode(packet) -> bytes:
-        h = packet.header
-        mtype = h.msg_type.value if hasattr(h.msg_type, 'value') else h.msg_type
-        
-        # <I B H I Q H Q 16s
-        # Total 45
-        buf = struct.pack(
+    def header_bytes(header) -> bytes:
+        """The 45-byte header, serialized as on the wire. Also used as the AEAD
+        AAD in protocol v2, so it must match the server's
+        ``PacketHeader::header_bytes()`` byte-for-byte."""
+        mtype = header.msg_type.value if hasattr(header.msg_type, 'value') else header.msg_type
+        return struct.pack(
             '<I B H I Q H Q 16s',
-            h.magic,
-            h.version,
-            h.flags,
-            h.length,
-            h.sequence,
-            mtype,
-            h.timestamp,
-            h.session_id
+            header.magic, header.version, header.flags, header.length,
+            header.sequence, mtype, header.timestamp, header.session_id,
         )
-        out = buf + packet.payload
+
+    @staticmethod
+    def encode(packet) -> bytes:
+        out = Packet.header_bytes(packet.header) + packet.payload
         if packet.auth_tag:
             out += packet.auth_tag
         return out

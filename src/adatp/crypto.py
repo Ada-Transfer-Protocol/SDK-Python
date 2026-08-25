@@ -4,16 +4,18 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 class SecureSession:
-    def __init__(self, role: str, shared_secret: bytes):
+    def __init__(self, role: str, shared_secret: bytes, bind_aad: bool = False):
         self.role = role
+        # When True (protocol v2), the 45-byte frame header is bound as AEAD AAD.
+        self.bind_aad = bind_aad
         self.client_write_key = None
         self.server_write_key = None
         self.client_iv_root = None
         self.server_iv_root = None
-        
+
         self.my_sequence = 1
         self.peer_sequence = 1
-        
+
         self._derive_keys(shared_secret)
         
     def _derive_keys(self, shared_secret: bytes):
@@ -33,33 +35,36 @@ class SecureSession:
         self.client_iv_root = derive(b'client_iv', 12)
         self.server_iv_root = derive(b'server_iv', 12)
         
-    def encrypt(self, plaintext: bytes) -> tuple:
+    def encrypt(self, plaintext: bytes, aad: bytes = b'') -> tuple:
         seq = self.my_sequence
         iv = self._compute_iv(seq, self.role)
-        
+
         key = self.client_write_key if self.role == 'client' else self.server_write_key
         aesgcm = AESGCM(key)
-        
+
+        # v2 binds the header as AAD; v1 passes empty AAD (None == b'' for GCM).
+        ad = aad if (self.bind_aad and aad) else None
         # AESGCM.encrypt(nonce, data, associated_data) returns ciphertext + tag appended
-        ciphertext_with_tag = aesgcm.encrypt(iv, plaintext, None)
-        
+        ciphertext_with_tag = aesgcm.encrypt(iv, plaintext, ad)
+
         # Split tag (last 16 bytes)
         actual_ciphertext = ciphertext_with_tag[:-16]
         tag = ciphertext_with_tag[-16:]
-        
+
         self.my_sequence += 1
         return actual_ciphertext, tag, seq
-        
-    def decrypt(self, ciphertext: bytes, auth_tag: bytes, sequence: int) -> bytes:
+
+    def decrypt(self, ciphertext: bytes, auth_tag: bytes, sequence: int, aad: bytes = b'') -> bytes:
         peer_role = 'server' if self.role == 'client' else 'client'
         iv = self._compute_iv(sequence, peer_role)
-        
+
         key = self.client_write_key if peer_role == 'client' else self.server_write_key
         aesgcm = AESGCM(key)
-        
+
+        ad = aad if (self.bind_aad and aad) else None
         # AESGCM.decrypt expects ciphertext + tag appended
         try:
-            plaintext = aesgcm.decrypt(iv, ciphertext + auth_tag, None)
+            plaintext = aesgcm.decrypt(iv, ciphertext + auth_tag, ad)
         except Exception as e:
             raise ValueError(f"Decryption failed: {e}")
             
