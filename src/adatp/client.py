@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives import serialization
 
 from .protocol import Packet, MessageType, PacketFlags, HEADER_SIZE, MAGIC_NUMBER
 from .crypto import SecureSession
+from . import handshake_v2
 
 
 class AdaTPClient:
@@ -32,7 +33,7 @@ class AdaTPClient:
 
     def __init__(self, host: str = '127.0.0.1', port: int = 3000,
                  path: str = '/ws', secure: bool = False, url: str = None,
-                 locale: str = 'en'):
+                 locale: str = 'en', server_key=None):
         if url:
             self.url = url
         else:
@@ -45,6 +46,11 @@ class AdaTPClient:
         # SDK language (client-side metadata; the wire protocol is
         # language-neutral). Falls back to 'en'.
         self.locale = locale if locale in self.LOCALES else 'en'
+        # Pinning the server's Ed25519 identity (hex or 32 bytes) enables the
+        # authenticated protocol v2 handshake (verify + header-AAD).
+        self._pinned_server_key = (
+            handshake_v2.normalize_pinned_key(server_key) if server_key is not None else None
+        )
 
     def set_locale(self, locale: str):
         """Switches the SDK language at runtime (one of LOCALES)."""
@@ -91,6 +97,10 @@ class AdaTPClient:
             format=serialization.PublicFormat.Raw
         )
 
+        # Authenticated v2 handshake when a server key is pinned.
+        if self._pinned_server_key is not None:
+            return self._handshake_v2(private_key, my_pub_bytes)
+
         # 2. HANDSHAKE_INIT carries our public key
         packet = Packet(MessageType.HANDSHAKE_INIT, my_pub_bytes, self.session_id)
         self._send_packet(packet)
@@ -115,6 +125,32 @@ class AdaTPClient:
         packet.header.sequence = seq
         packet.auth_tag = tag
         self._send_packet(packet)
+
+    def _handshake_v2(self, private_key, my_pub_bytes):
+        """Protocol v2 — authenticated handshake against the pinned server key.
+        Verify (pin + signature) BEFORE deriving keys, then send an encrypted,
+        header-AAD-bound Finished."""
+        # 1. HANDSHAKE_INIT (version=2) carries our ephemeral public key.
+        packet = Packet(MessageType.HANDSHAKE_INIT, my_pub_bytes, self.session_id)
+        packet.header.version = handshake_v2.PROTOCOL_V2
+        self._send_packet(packet)
+
+        # 2. HANDSHAKE_RESPONSE = epk_s || spk_s || sig; verify against the pin.
+        resp = self.read_packet()
+        if resp.header.msg_type != MessageType.HANDSHAKE_RESPONSE:
+            raise Exception(f"Handshake failed: expected RESPONSE, got {resp.header.msg_type}")
+        epk_s, th = handshake_v2.verify_server_hello(
+            self._pinned_server_key, my_pub_bytes, bytes(resp.payload))
+
+        # 3. Derive the shared secret + keys only after verification (v2 = AAD-bound).
+        server_pub = x25519.X25519PublicKey.from_public_bytes(epk_s)
+        shared_secret = private_key.exchange(server_pub)
+        self.crypto_session = SecureSession('client', shared_secret, bind_aad=True)
+
+        # 4. HANDSHAKE_COMPLETE: encrypted Finished = FINISHED_LABEL || th.
+        self._send_encrypted(MessageType.HANDSHAKE_COMPLETE,
+                             handshake_v2.finished_plaintext(th),
+                             version=handshake_v2.PROTOCOL_V2)
 
     def authenticate(self, username: str, password: str) -> dict:
         """Sends credentials; returns the identity dict or raises on failure."""
@@ -227,17 +263,28 @@ class AdaTPClient:
         if packet.header.flags & PacketFlags.ENCRYPTED:
             if not self.crypto_session:
                 raise Exception("Encrypted packet without a session")
+            aad = Packet.header_bytes(packet.header) if self.crypto_session.bind_aad else b''
             return self.crypto_session.decrypt(
-                packet.payload, packet.auth_tag, packet.header.sequence)
+                packet.payload, packet.auth_tag, packet.header.sequence, aad)
         return packet.payload
 
-    def _send_encrypted(self, msg_type, payload: bytes):
+    def _send_encrypted(self, msg_type, payload: bytes, version: int = 1):
         if not self.crypto_session:
             raise Exception("No crypto session (call connect() first)")
 
-        ciphertext, tag, seq = self.crypto_session.encrypt(payload)
-        packet = Packet(msg_type, ciphertext, self.session_id)
+        # Build the header first so a v2 session can bind it as AEAD AAD. For GCM
+        # the ciphertext length equals the plaintext length, so the header is
+        # final before encryption (only the sequence is echoed back).
+        packet = Packet(msg_type, b'', self.session_id)
+        packet.header.version = version
         packet.header.flags |= PacketFlags.ENCRYPTED
+        packet.header.length = len(payload)
+        packet.header.sequence = self.crypto_session.my_sequence
+
+        aad = Packet.header_bytes(packet.header) if self.crypto_session.bind_aad else b''
+        ciphertext, tag, seq = self.crypto_session.encrypt(payload, aad)
+        packet.payload = ciphertext
+        packet.header.length = len(ciphertext)
         packet.header.sequence = seq
         packet.auth_tag = tag
         self._send_packet(packet)
