@@ -27,7 +27,7 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/src
 from adatp.client import AdaTPClient
 
 # 1. Initialize
-client = AdaTPClient('127.0.0.1', 8444)
+client = AdaTPClient('127.0.0.1', 3000)
 
 try:
     # 2. Connect
@@ -73,4 +73,4 @@ The reception logic requires handling `FILE_INIT`, `FILE_CHUNK`, and `FILE_COMPL
 
 ## 🔧 Configuration
 
-By default, the SDK connects to `127.0.0.1:8444`. You can modify the host and port during the `AdaTPClient` initialization.
+By default, the SDK connects to `ws://127.0.0.1:3000/ws` (WebSocket). You can modify the host and port during `AdaTPClient` initialization, or pass a full URL: `AdaTPClient(url="wss://example.com/ws")`. Requires `websocket-client` and `cryptography` (`pip install websocket-client cryptography`).

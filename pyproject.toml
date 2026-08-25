@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adatp"
-version = "0.1.0"
+version = "1.0.0"
 description = "Ada Transport Protocol SDK for Python"
 readme = "README.md"
 authors = [{ name = "The Coder", email = "coder@example.com" }]
@@ -17,6 +17,7 @@ classifiers = [
 requires-python = ">=3.7"
 dependencies = [
     "cryptography>=41.0.0",
+    "websocket-client>=1.6.0",
 ]
 
 [project.urls]

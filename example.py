@@ -21,7 +21,7 @@ def main():
         
     password = input("Enter password (default: secret_password): ").strip() or "secret_password"
 
-    client = AdaTPClient('127.0.0.1', 8444)
+    client = AdaTPClient('127.0.0.1', 3000)
     
     try:
         print("Connecting...")

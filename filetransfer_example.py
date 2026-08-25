@@ -9,7 +9,7 @@ from adatp.protocol import MessageType, PacketFlags, Packet
 
 def main():
     try:
-        client = AdaTPClient('127.0.0.1', 8444)
+        client = AdaTPClient('127.0.0.1', 3000)
         client.connect()
         client.authenticate("pybot", "secret_password")
         
