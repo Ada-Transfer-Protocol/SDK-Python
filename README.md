@@ -74,3 +74,14 @@ The reception logic requires handling `FILE_INIT`, `FILE_CHUNK`, and `FILE_COMPL
 ## 🔧 Configuration
 
 By default, the SDK connects to `ws://127.0.0.1:3000/ws` (WebSocket). You can modify the host and port during `AdaTPClient` initialization, or pass a full URL: `AdaTPClient(url="wss://example.com/ws")`. Requires `websocket-client` and `cryptography` (`pip install websocket-client cryptography`).
+
+## Language / locale
+
+The client takes a `locale` argument for its user-facing strings
+(client-side metadata — the wire protocol is language-neutral). Default
+`en`; supported: `en tr it fr de zh ja hi ar`.
+
+```python
+client = AdaTPClient('127.0.0.1', 3000, locale='tr')
+client.set_locale('de')  # switch at runtime
+```

@@ -27,8 +27,12 @@ class AdaTPClient:
     A full URL is also accepted: ``AdaTPClient(url='wss://example.com/ws')``.
     """
 
+    #: Locales supported by the SDK's language option.
+    LOCALES = ('en', 'tr', 'it', 'fr', 'de', 'zh', 'ja', 'hi', 'ar')
+
     def __init__(self, host: str = '127.0.0.1', port: int = 3000,
-                 path: str = '/ws', secure: bool = False, url: str = None):
+                 path: str = '/ws', secure: bool = False, url: str = None,
+                 locale: str = 'en'):
         if url:
             self.url = url
         else:
@@ -38,6 +42,13 @@ class AdaTPClient:
         self.crypto_session = None
         self.session_id = None
         self._inbox = []
+        # SDK language (client-side metadata; the wire protocol is
+        # language-neutral). Falls back to 'en'.
+        self.locale = locale if locale in self.LOCALES else 'en'
+
+    def set_locale(self, locale: str):
+        """Switches the SDK language at runtime (one of LOCALES)."""
+        self.locale = locale if locale in self.LOCALES else 'en'
 
     def connect(self, timeout: float = 10.0):
         self.ws = websocket.create_connection(self.url, timeout=timeout)
