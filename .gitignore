@@ -8,3 +8,5 @@ downloads_py/
 dist/
 build/
 *.egg-info/
+*.pyc
+.omc/
