@@ -154,7 +154,16 @@ class AdaTPClient:
 
     def authenticate(self, username: str, password: str) -> dict:
         """Sends credentials; returns the identity dict or raises on failure."""
-        payload = json.dumps({"username": username, "password": password}).encode('utf-8')
+        return self._do_auth({"username": username, "password": password})
+
+    def authenticate_with_string(self, auth_string: str) -> dict:
+        """Authenticate with a single credential string (token/session/API key)
+        instead of username+password — for servers whose auth mode expects an
+        ``auth_string`` (file-driver token, external webhook, etc.)."""
+        return self._do_auth({"auth_string": auth_string})
+
+    def _do_auth(self, body: dict) -> dict:
+        payload = json.dumps(body).encode('utf-8')
         self._send_encrypted(MessageType.AUTH_REQUEST, payload)
 
         resp = self.read_packet()
